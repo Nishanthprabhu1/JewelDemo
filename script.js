@@ -1,4 +1,4 @@
-/* script.js - Jewels-Ai Atelier: Clean Look (No Sparkles) */
+/* script.js - Jewels-Ai Atelier: Fixed Gestures */
 
 /* --- CONFIGURATION --- */
 const API_KEY = "AIzaSyAXG3iG2oQjUA_BpnO8dK8y-MHJ7HLrhyE"; 
@@ -27,9 +27,12 @@ const flashOverlay = document.getElementById('flash-overlay');
 let earringImg = null, necklaceImg = null, ringImg = null, bangleImg = null;
 let currentType = ''; 
 let isProcessingHand = false, isProcessingFace = false;
+
+/* Gesture State (FIXED) */
 let lastGestureTime = 0;
-const GESTURE_COOLDOWN = 800; 
+const GESTURE_COOLDOWN = 1200; // Increased to prevent double-swipes
 let previousHandX = null;     
+let gestureStartTime = 0;     // New: Tracks when a movement started
 
 /* Camera State */
 let currentCameraMode = 'user'; 
@@ -215,7 +218,7 @@ async function shareSingleSnapshot() {
     else alert("Share not supported.");
 }
 
-/* --- 5. PHYSICS & AI CORE --- */
+/* --- 5. PHYSICS & AI CORE (GESTURE FIX) --- */
 function calculateAngle(p1, p2) { return Math.atan2(p2.y - p1.y, p2.x - p1.x); }
 
 const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
@@ -271,14 +274,12 @@ hands.onResults((results) => {
           canvasCtx.translate(handSmoother.ring.x, handSmoother.ring.y); 
           canvasCtx.rotate(handSmoother.ring.angle); 
           
-          // Shadow 50% reduced
           canvasCtx.shadowColor = "rgba(0, 0, 0, 0.3)";
           canvasCtx.shadowBlur = 10;
           canvasCtx.shadowOffsetX = 5;
           canvasCtx.shadowOffsetY = 5;
 
           const currentDist = handSmoother.ring.size / 0.6;
-          // Image offset 
           const yOffset = currentDist * 0.15;
           canvasCtx.drawImage(ringImg, -handSmoother.ring.size/2, yOffset, handSmoother.ring.size, rHeight); 
           canvasCtx.restore();
@@ -300,15 +301,51 @@ hands.onResults((results) => {
           canvasCtx.restore();
       }
 
+      // --- UPDATED GESTURE LOGIC (FIXED) ---
       if (!autoTryRunning) {
           const now = Date.now();
+          // Only check gesture if cooldown passed
           if (now - lastGestureTime > GESTURE_COOLDOWN) {
-              const indexTip = lm[8]; 
-              if (previousHandX !== null) {
-                  const diff = indexTip.x - previousHandX;
-                  if (Math.abs(diff) > 0.04) { navigateJewelry(diff < 0 ? 1 : -1); lastGestureTime = now; previousHandX = null; }
+              const indexTip = lm[8]; // Index finger tip x (0.0 to 1.0)
+              
+              // If we don't have a start point, set it
+              if (previousHandX === null) {
+                  previousHandX = indexTip.x;
+                  gestureStartTime = now;
+              } else {
+                  // Calculate movement distance
+                  const movement = indexTip.x - previousHandX;
+                  
+                  // SWIPE DETECTION:
+                  // 1. Distance > 0.15 (15% of screen width)
+                  // 2. Happens within 1 second (to avoid slow drift triggering it)
+                  if (Math.abs(movement) > 0.15) {
+                      // Direction Logic:
+                      // movement > 0 (Left to Right) -> Previous (Index -1)
+                      // movement < 0 (Right to Left) -> Next (Index 1)
+                      // Note: On mirrored display, 'Next' is usually dragging Right-to-Left
+                      if (movement < 0) {
+                           // Swiped LEFT (Next)
+                           navigateJewelry(1);
+                           showToast("Next Design");
+                      } else {
+                           // Swiped RIGHT (Previous)
+                           navigateJewelry(-1);
+                           showToast("Previous Design");
+                      }
+
+                      // Reset and trigger cooldown
+                      lastGestureTime = now;
+                      previousHandX = null;
+                  }
+
+                  // RESET: If 1 second passed and no swipe happened, reset the anchor
+                  // This prevents "stuck" tracking if you move your hand very slowly
+                  if (now - gestureStartTime > 1000) {
+                      previousHandX = indexTip.x; // Reset anchor to current
+                      gestureStartTime = now;
+                  }
               }
-              if (now - lastGestureTime > 100) previousHandX = indexTip.x;
           }
       }
   } else { 
@@ -318,10 +355,19 @@ hands.onResults((results) => {
   canvasCtx.restore();
 });
 
+// Helper to show small text when gesture triggers
+function showToast(msg) {
+    if(loadingStatus) {
+        loadingStatus.textContent = msg;
+        loadingStatus.style.display = 'block';
+        setTimeout(() => { loadingStatus.style.display = 'none'; }, 1000);
+    }
+}
+
 const faceMesh = new FaceMesh({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
 faceMesh.setOptions({ refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
 faceMesh.onResults((results) => {
-  isProcessingFace = false; if(loadingStatus.style.display !== 'none') loadingStatus.style.display = 'none';
+  isProcessingFace = false; if(loadingStatus.style.display !== 'none' && loadingStatus.textContent.includes('Switching')) loadingStatus.style.display = 'none';
   canvasElement.width = videoElement.videoWidth; canvasElement.height = videoElement.videoHeight;
   canvasCtx.save(); canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
   
