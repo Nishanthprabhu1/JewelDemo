@@ -1,4 +1,4 @@
-/* script.js - Jewels-Ai Atelier: Voice & Gesture Enabled */
+/* script.js - Jewels-Ai Atelier: Shake Gesture for Hands */
 
 /* --- CONFIGURATION --- */
 const API_KEY = "AIzaSyAXG3iG2oQjUA_BpnO8dK8y-MHJ7HLrhyE"; 
@@ -30,9 +30,13 @@ let isProcessingHand = false, isProcessingFace = false;
 
 /* Gesture State */
 let lastGestureTime = 0;
-const GESTURE_COOLDOWN = 1200; 
+const GESTURE_COOLDOWN = 1000; 
+// Swipe Variables
 let previousHandX = null;     
 let gestureStartTime = 0;
+// Shake Variables
+let shakeEnergy = 0;
+let previousWristX = null;
 
 /* Camera State */
 let currentCameraMode = 'user'; 
@@ -68,7 +72,7 @@ function lerp(start, end, amt) {
     return (1 - amt) * start + amt * end;
 }
 
-/* --- 1. HELPER: TOAST FEEDBACK (Used by Voice & Gesture) --- */
+/* --- 1. HELPER: TOAST FEEDBACK --- */
 function showToast(msg) {
     if(loadingStatus) {
         loadingStatus.textContent = msg;
@@ -143,9 +147,7 @@ function toggleVoiceControl() {
 }
 
 function processVoiceCommand(cmd) {
-    console.log("Heard:", cmd);
     let action = "";
-
     if (cmd.includes('next') || cmd.includes('change')) { 
         navigateJewelry(1); action = "Next Design"; 
     }
@@ -167,7 +169,6 @@ function processVoiceCommand(cmd) {
     else if (cmd.includes('bangle')) { 
         selectJewelryType('bangles'); action = "Bangles Selected"; 
     }
-
     if (action) showToast("🎙️ " + action);
 }
 
@@ -267,7 +268,7 @@ async function shareSingleSnapshot() {
     else alert("Share not supported.");
 }
 
-/* --- 6. PHYSICS & AI CORE (GESTURE FIX) --- */
+/* --- 6. PHYSICS & AI CORE (SHAKE & SWIPE) --- */
 function calculateAngle(p1, p2) { return Math.atan2(p2.y - p1.y, p2.x - p1.x); }
 
 const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
@@ -294,6 +295,9 @@ hands.onResults((results) => {
       const targetRingWidth = dist * 0.6; 
 
       const wrist = { x: lm[0].x * w, y: lm[0].y * h }; 
+      // wrist normalized for gesture logic
+      const wristNorm = lm[0].x; 
+
       const pinkyMcp = { x: lm[17].x * w, y: lm[17].y * h };
       const indexMcp = { x: lm[5].x * w, y: lm[5].y * h };
       const wristWidth = Math.hypot(pinkyMcp.x - indexMcp.x, pinkyMcp.y - indexMcp.y);
@@ -350,39 +354,54 @@ hands.onResults((results) => {
           canvasCtx.restore();
       }
 
-      // --- UPDATED GESTURE LOGIC ---
+      // --- DUAL GESTURE LOGIC ---
       if (!autoTryRunning) {
           const now = Date.now();
           if (now - lastGestureTime > GESTURE_COOLDOWN) {
-              const indexTip = lm[8]; // Index finger tip x (0.0 to 1.0)
               
-              if (previousHandX === null) {
-                  previousHandX = indexTip.x;
-                  gestureStartTime = now;
-              } else {
-                  const movement = indexTip.x - previousHandX;
-                  // Swipe Threshold: 0.15
-                  if (Math.abs(movement) > 0.15) {
-                      if (movement < 0) {
-                           navigateJewelry(1);
-                           showToast("Next Design");
-                      } else {
-                           navigateJewelry(-1);
-                           showToast("Previous Design");
-                      }
-                      lastGestureTime = now;
-                      previousHandX = null;
+              // MODE A: SHAKE (For Rings & Bangles)
+              if (currentType === 'rings' || currentType === 'bangles') {
+                  if (previousWristX !== null) {
+                      const movement = Math.abs(wristNorm - previousWristX);
+                      shakeEnergy += movement; // Accumulate energy
                   }
-                  // Reset if too slow (> 1s)
-                  if (now - gestureStartTime > 1000) {
+                  previousWristX = wristNorm;
+                  shakeEnergy *= 0.85; // Decay energy fast
+
+                  // Threshold for vigorous shake
+                  if (shakeEnergy > 0.25) { 
+                      navigateJewelry(1); 
+                      showToast("Shake Detected!");
+                      lastGestureTime = now;
+                      shakeEnergy = 0;
+                  }
+              } 
+              // MODE B: SWIPE (For Earrings & Chains)
+              else {
+                  const indexTip = lm[8]; 
+                  if (previousHandX === null) {
                       previousHandX = indexTip.x;
                       gestureStartTime = now;
+                  } else {
+                      const movement = indexTip.x - previousHandX;
+                      if (Math.abs(movement) > 0.15) {
+                          if (movement < 0) { navigateJewelry(1); showToast("Next Design"); } 
+                          else { navigateJewelry(-1); showToast("Previous Design"); }
+                          lastGestureTime = now;
+                          previousHandX = null;
+                      }
+                      if (now - gestureStartTime > 1000) {
+                          previousHandX = indexTip.x;
+                          gestureStartTime = now;
+                      }
                   }
               }
           }
       }
   } else { 
-      previousHandX = null; 
+      previousHandX = null;
+      previousWristX = null;
+      shakeEnergy = 0;
       handSmoother.active = false; 
   }
   canvasCtx.restore();
