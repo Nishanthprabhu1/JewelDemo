@@ -1,4 +1,4 @@
-/* script.js - Jewels-Ai Atelier: Shake Gesture for Hands */
+/* script.js - Jewels-Ai Atelier: Clean Look (No Sparkles) */
 
 /* --- CONFIGURATION --- */
 const API_KEY = "AIzaSyAXG3iG2oQjUA_BpnO8dK8y-MHJ7HLrhyE"; 
@@ -27,16 +27,9 @@ const flashOverlay = document.getElementById('flash-overlay');
 let earringImg = null, necklaceImg = null, ringImg = null, bangleImg = null;
 let currentType = ''; 
 let isProcessingHand = false, isProcessingFace = false;
-
-/* Gesture State */
 let lastGestureTime = 0;
-const GESTURE_COOLDOWN = 1000; 
-// Swipe Variables
+const GESTURE_COOLDOWN = 800; 
 let previousHandX = null;     
-let gestureStartTime = 0;
-// Shake Variables
-let shakeEnergy = 0;
-let previousWristX = null;
 
 /* Camera State */
 let currentCameraMode = 'user'; 
@@ -72,18 +65,7 @@ function lerp(start, end, amt) {
     return (1 - amt) * start + amt * end;
 }
 
-/* --- 1. HELPER: TOAST FEEDBACK --- */
-function showToast(msg) {
-    if(loadingStatus) {
-        loadingStatus.textContent = msg;
-        loadingStatus.style.display = 'block';
-        loadingStatus.style.backgroundColor = "rgba(0,0,0,0.8)";
-        loadingStatus.style.borderColor = "var(--accent)";
-        setTimeout(() => { loadingStatus.style.display = 'none'; }, 1500);
-    }
-}
-
-/* --- 2. FLASH EFFECT --- */
+/* --- 1. FLASH EFFECT --- */
 function triggerFlash() {
     if(!flashOverlay) return;
     flashOverlay.classList.remove('flash-active'); 
@@ -92,7 +74,7 @@ function triggerFlash() {
     setTimeout(() => { flashOverlay.classList.remove('flash-active'); }, 300);
 }
 
-/* --- 3. VOICE RECOGNITION AI --- */
+/* --- 2. VOICE RECOGNITION AI --- */
 function initVoiceControl() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -100,26 +82,13 @@ function initVoiceControl() {
         recognition.continuous = true; 
         recognition.interimResults = false;
         recognition.lang = 'en-US';
-        
-        recognition.onstart = () => {
-             const btn = document.getElementById('voice-btn');
-             if(btn) btn.classList.remove('voice-off');
-        };
-
         recognition.onresult = (event) => {
             const command = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
             processVoiceCommand(command);
         };
-        
         recognition.onend = () => {
-            if (voiceEnabled) { 
-                setTimeout(() => { try { recognition.start(); } catch(e) { } }, 1000); 
-            } else {
-                 const btn = document.getElementById('voice-btn');
-                 if(btn) btn.classList.add('voice-off');
-            }
+            if (voiceEnabled) { setTimeout(() => { try { recognition.start(); } catch(e) { } }, 1000); }
         };
-        
         try { recognition.start(); } catch(e) { console.log("Voice start error", e); }
     } else {
         const btn = document.getElementById('voice-btn');
@@ -130,56 +99,34 @@ function initVoiceControl() {
 function toggleVoiceControl() {
     const btn = document.getElementById('voice-btn');
     if(!recognition) return;
-    
     if (voiceEnabled) {
-        voiceEnabled = false; 
-        recognition.stop();
-        btn.innerHTML = '🔇'; 
-        btn.classList.add('voice-off');
-        showToast("Voice Control Off");
+        voiceEnabled = false; recognition.stop();
+        btn.innerHTML = '🎙️'; btn.classList.add('voice-off');
     } else {
-        voiceEnabled = true; 
-        try { recognition.start(); } catch(e) {}
-        btn.innerHTML = '🎙️'; 
-        btn.classList.remove('voice-off');
-        showToast("Listening...");
+        voiceEnabled = true; try { recognition.start(); } catch(e) {}
+        btn.innerHTML = '🎙️'; btn.classList.remove('voice-off');
     }
 }
 
 function processVoiceCommand(cmd) {
-    let action = "";
-    if (cmd.includes('next') || cmd.includes('change')) { 
-        navigateJewelry(1); action = "Next Design"; 
-    }
-    else if (cmd.includes('back') || cmd.includes('previous')) { 
-        navigateJewelry(-1); action = "Previous Design"; 
-    }
-    else if (cmd.includes('photo') || cmd.includes('capture') || cmd.includes('snap')) { 
-        takeSnapshot(); action = "Taking Photo..."; 
-    }
-    else if (cmd.includes('earring')) { 
-        selectJewelryType('earrings'); action = "Earrings Selected"; 
-    }
-    else if (cmd.includes('chain') || cmd.includes('necklace')) { 
-        selectJewelryType('chains'); action = "Chains Selected"; 
-    }
-    else if (cmd.includes('ring')) { 
-        selectJewelryType('rings'); action = "Rings Selected"; 
-    }
-    else if (cmd.includes('bangle')) { 
-        selectJewelryType('bangles'); action = "Bangles Selected"; 
-    }
-    if (action) showToast("🎙️ " + action);
+    if (cmd.includes('next') || cmd.includes('change')) navigateJewelry(1);
+    else if (cmd.includes('back') || cmd.includes('previous')) navigateJewelry(-1);
+    else if (cmd.includes('photo') || cmd.includes('capture')) takeSnapshot();
+    else if (cmd.includes('earring')) selectJewelryType('earrings');
+    else if (cmd.includes('chain')) selectJewelryType('chains');
+    else if (cmd.includes('ring')) selectJewelryType('rings');
+    else if (cmd.includes('bangle')) selectJewelryType('bangles');
 }
 
-/* --- 4. GOOGLE DRIVE FETCHING --- */
+/* --- 3. GOOGLE DRIVE FETCHING --- */
 async function fetchFromDrive(category) {
     if (JEWELRY_ASSETS[category]) return;
     const folderId = DRIVE_FOLDERS[category];
     if (!folderId) return;
     
     if(videoElement.paused) {
-        showToast("Fetching Designs...");
+        loadingStatus.style.display = 'block'; 
+        loadingStatus.textContent = "Fetching Designs...";
     }
     
     try {
@@ -214,14 +161,14 @@ async function preloadCategory(type) {
             });
         });
         if(videoElement.paused) {
-             showToast("Downloading Assets...");
+             loadingStatus.textContent = "Downloading Assets...";
         }
         await Promise.all(promises); 
     }
     loadingStatus.style.display = 'none';
 }
 
-/* --- 5. WHATSAPP AUTOMATION --- */
+/* --- 4. WHATSAPP AUTOMATION --- */
 function requestWhatsApp(actionType) {
     pendingDownloadAction = actionType; document.getElementById('whatsapp-modal').style.display = 'flex';
 }
@@ -268,7 +215,7 @@ async function shareSingleSnapshot() {
     else alert("Share not supported.");
 }
 
-/* --- 6. PHYSICS & AI CORE (SHAKE & SWIPE) --- */
+/* --- 5. PHYSICS & AI CORE --- */
 function calculateAngle(p1, p2) { return Math.atan2(p2.y - p1.y, p2.x - p1.x); }
 
 const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
@@ -295,9 +242,6 @@ hands.onResults((results) => {
       const targetRingWidth = dist * 0.6; 
 
       const wrist = { x: lm[0].x * w, y: lm[0].y * h }; 
-      // wrist normalized for gesture logic
-      const wristNorm = lm[0].x; 
-
       const pinkyMcp = { x: lm[17].x * w, y: lm[17].y * h };
       const indexMcp = { x: lm[5].x * w, y: lm[5].y * h };
       const wristWidth = Math.hypot(pinkyMcp.x - indexMcp.x, pinkyMcp.y - indexMcp.y);
@@ -327,12 +271,14 @@ hands.onResults((results) => {
           canvasCtx.translate(handSmoother.ring.x, handSmoother.ring.y); 
           canvasCtx.rotate(handSmoother.ring.angle); 
           
+          // Shadow 50% reduced
           canvasCtx.shadowColor = "rgba(0, 0, 0, 0.3)";
           canvasCtx.shadowBlur = 10;
           canvasCtx.shadowOffsetX = 5;
           canvasCtx.shadowOffsetY = 5;
 
           const currentDist = handSmoother.ring.size / 0.6;
+          // Image offset 
           const yOffset = currentDist * 0.15;
           canvasCtx.drawImage(ringImg, -handSmoother.ring.size/2, yOffset, handSmoother.ring.size, rHeight); 
           canvasCtx.restore();
@@ -354,54 +300,19 @@ hands.onResults((results) => {
           canvasCtx.restore();
       }
 
-      // --- DUAL GESTURE LOGIC ---
       if (!autoTryRunning) {
           const now = Date.now();
           if (now - lastGestureTime > GESTURE_COOLDOWN) {
-              
-              // MODE A: SHAKE (For Rings & Bangles)
-              if (currentType === 'rings' || currentType === 'bangles') {
-                  if (previousWristX !== null) {
-                      const movement = Math.abs(wristNorm - previousWristX);
-                      shakeEnergy += movement; // Accumulate energy
-                  }
-                  previousWristX = wristNorm;
-                  shakeEnergy *= 0.85; // Decay energy fast
-
-                  // Threshold for vigorous shake
-                  if (shakeEnergy > 0.25) { 
-                      navigateJewelry(1); 
-                      showToast("Shake Detected!");
-                      lastGestureTime = now;
-                      shakeEnergy = 0;
-                  }
-              } 
-              // MODE B: SWIPE (For Earrings & Chains)
-              else {
-                  const indexTip = lm[8]; 
-                  if (previousHandX === null) {
-                      previousHandX = indexTip.x;
-                      gestureStartTime = now;
-                  } else {
-                      const movement = indexTip.x - previousHandX;
-                      if (Math.abs(movement) > 0.15) {
-                          if (movement < 0) { navigateJewelry(1); showToast("Next Design"); } 
-                          else { navigateJewelry(-1); showToast("Previous Design"); }
-                          lastGestureTime = now;
-                          previousHandX = null;
-                      }
-                      if (now - gestureStartTime > 1000) {
-                          previousHandX = indexTip.x;
-                          gestureStartTime = now;
-                      }
-                  }
+              const indexTip = lm[8]; 
+              if (previousHandX !== null) {
+                  const diff = indexTip.x - previousHandX;
+                  if (Math.abs(diff) > 0.04) { navigateJewelry(diff < 0 ? 1 : -1); lastGestureTime = now; previousHandX = null; }
               }
+              if (now - lastGestureTime > 100) previousHandX = indexTip.x;
           }
       }
   } else { 
-      previousHandX = null;
-      previousWristX = null;
-      shakeEnergy = 0;
+      previousHandX = null; 
       handSmoother.active = false; 
   }
   canvasCtx.restore();
@@ -410,7 +321,7 @@ hands.onResults((results) => {
 const faceMesh = new FaceMesh({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
 faceMesh.setOptions({ refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
 faceMesh.onResults((results) => {
-  isProcessingFace = false; if(loadingStatus.style.display !== 'none' && loadingStatus.textContent.includes('Switching')) loadingStatus.style.display = 'none';
+  isProcessingFace = false; if(loadingStatus.style.display !== 'none') loadingStatus.style.display = 'none';
   canvasElement.width = videoElement.videoWidth; canvasElement.height = videoElement.videoHeight;
   canvasCtx.save(); canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
   
@@ -692,7 +603,8 @@ window.changeLightboxImage = changeLightboxImage; window.toggleVoiceControl = to
 async function startCameraFast(mode = 'user') {
     if (videoElement.srcObject && currentCameraMode === mode && videoElement.readyState >= 2) return;
     currentCameraMode = mode;
-    showToast(mode === 'environment' ? "Switching to Back Camera..." : "Switching to Selfie Camera...");
+    loadingStatus.style.display = 'block';
+    loadingStatus.textContent = mode === 'environment' ? "Switching to Back Camera..." : "Switching to Selfie Camera...";
     if (videoElement.srcObject) { videoElement.srcObject.getTracks().forEach(track => track.stop()); }
     if (mode === 'environment') { videoElement.classList.add('no-mirror'); } else { videoElement.classList.remove('no-mirror'); }
 
