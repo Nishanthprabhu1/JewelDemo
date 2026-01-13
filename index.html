@@ -22,7 +22,7 @@
       <canvas id="overlay"></canvas>
     </div>
 
-    <div id="voice-indicator">
+    <div id="voice-indicator" style="display:none;">
         <div class="mic-icon">🎙️</div>
         <span id="voice-status-text">Listening...</span>
     </div>
@@ -35,6 +35,7 @@
           <img src="logo.png" alt="Jewels-ai Logo" class="brand-logo" />
         </div>
         <div class="action-row">
+          <button id="voice-btn" onclick="toggleVoiceControl()" title="Toggle Voice Control">🎙️</button>
           <button id="snapshot-btn" onclick="takeSnapshot()" title="Take Photo">📷</button>
         </div>
       </div>
@@ -62,7 +63,6 @@
         
         <div class="chat-body" id="chat-body-content">
             <div class="msg bot">Hello! I'm Sai Pallavi. How can I help you choose the perfect jewelry today?</div>
-            <div class="msg bot">You can ask me about Gold purity or Diamond clarity!</div>
         </div>
         
         <div class="chat-input">
@@ -73,11 +73,9 @@
 
     <div id="preview-modal">
         <span class="close-preview" onclick="closePreview()">&times;</span>
-        
         <div class="preview-container">
             <img id="preview-image" src="" alt="Captured Look">
         </div>
-
         <div class="preview-actions">
             <button class="pill accent" onclick="downloadSingleSnapshot()">WhatsApp / Download</button>
             <button class="pill" onclick="shareSingleSnapshot()">Share</button>
@@ -88,9 +86,7 @@
       <div class="gallery-content">
         <span class="close-gallery" onclick="closeGallery()">&times;</span>
         <h2 style="color:#d4af37; font-family:'Playfair Display';">Your Collection</h2>
-        
         <div id="gallery-grid"></div>
-        
         <div style="margin-top:20px;">
           <button class="pill accent" onclick="downloadAllAsZip()">Download ZIP</button>
         </div>
@@ -108,9 +104,7 @@
         <div class="modal-box">
             <h2 style="color:#d4af37; font-family:'Playfair Display';">Send to WhatsApp</h2>
             <p style="color:#ccc; font-size:14px;">Enter your number to receive this photo instantly.</p>
-            
             <input type="tel" id="user-phone" placeholder="+91 9876543210" class="input-dark">
-            
             <button class="pill accent" onclick="confirmWhatsAppDownload()">Send & Download</button>
             <button onclick="closeWhatsAppModal()" class="btn-text">Cancel</button>
         </div>
@@ -126,11 +120,10 @@
   </div>
 
   <script src="script.js"></script>
-
+  
   <script>
     document.addEventListener('contextmenu', (e) => e.preventDefault());
     document.onkeydown = function(e) {
-      // Disable F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U
       if (e.keyCode === 123) return false; 
       if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67 || e.keyCode === 75)) return false;
       if (e.ctrlKey && e.keyCode === 85) return false; 

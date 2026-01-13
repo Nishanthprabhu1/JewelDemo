@@ -1,4 +1,4 @@
-/* script.js - Jewels-Ai Atelier: Fixed Gestures */
+/* script.js - Jewels-Ai Atelier: Voice & Gesture Enabled */
 
 /* --- CONFIGURATION --- */
 const API_KEY = "AIzaSyAXG3iG2oQjUA_BpnO8dK8y-MHJ7HLrhyE"; 
@@ -28,11 +28,11 @@ let earringImg = null, necklaceImg = null, ringImg = null, bangleImg = null;
 let currentType = ''; 
 let isProcessingHand = false, isProcessingFace = false;
 
-/* Gesture State (FIXED) */
+/* Gesture State */
 let lastGestureTime = 0;
-const GESTURE_COOLDOWN = 1200; // Increased to prevent double-swipes
+const GESTURE_COOLDOWN = 1200; 
 let previousHandX = null;     
-let gestureStartTime = 0;     // New: Tracks when a movement started
+let gestureStartTime = 0;
 
 /* Camera State */
 let currentCameraMode = 'user'; 
@@ -68,7 +68,18 @@ function lerp(start, end, amt) {
     return (1 - amt) * start + amt * end;
 }
 
-/* --- 1. FLASH EFFECT --- */
+/* --- 1. HELPER: TOAST FEEDBACK (Used by Voice & Gesture) --- */
+function showToast(msg) {
+    if(loadingStatus) {
+        loadingStatus.textContent = msg;
+        loadingStatus.style.display = 'block';
+        loadingStatus.style.backgroundColor = "rgba(0,0,0,0.8)";
+        loadingStatus.style.borderColor = "var(--accent)";
+        setTimeout(() => { loadingStatus.style.display = 'none'; }, 1500);
+    }
+}
+
+/* --- 2. FLASH EFFECT --- */
 function triggerFlash() {
     if(!flashOverlay) return;
     flashOverlay.classList.remove('flash-active'); 
@@ -77,7 +88,7 @@ function triggerFlash() {
     setTimeout(() => { flashOverlay.classList.remove('flash-active'); }, 300);
 }
 
-/* --- 2. VOICE RECOGNITION AI --- */
+/* --- 3. VOICE RECOGNITION AI --- */
 function initVoiceControl() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -85,13 +96,26 @@ function initVoiceControl() {
         recognition.continuous = true; 
         recognition.interimResults = false;
         recognition.lang = 'en-US';
+        
+        recognition.onstart = () => {
+             const btn = document.getElementById('voice-btn');
+             if(btn) btn.classList.remove('voice-off');
+        };
+
         recognition.onresult = (event) => {
             const command = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
             processVoiceCommand(command);
         };
+        
         recognition.onend = () => {
-            if (voiceEnabled) { setTimeout(() => { try { recognition.start(); } catch(e) { } }, 1000); }
+            if (voiceEnabled) { 
+                setTimeout(() => { try { recognition.start(); } catch(e) { } }, 1000); 
+            } else {
+                 const btn = document.getElementById('voice-btn');
+                 if(btn) btn.classList.add('voice-off');
+            }
         };
+        
         try { recognition.start(); } catch(e) { console.log("Voice start error", e); }
     } else {
         const btn = document.getElementById('voice-btn');
@@ -102,34 +126,59 @@ function initVoiceControl() {
 function toggleVoiceControl() {
     const btn = document.getElementById('voice-btn');
     if(!recognition) return;
+    
     if (voiceEnabled) {
-        voiceEnabled = false; recognition.stop();
-        btn.innerHTML = '🎙️'; btn.classList.add('voice-off');
+        voiceEnabled = false; 
+        recognition.stop();
+        btn.innerHTML = '🔇'; 
+        btn.classList.add('voice-off');
+        showToast("Voice Control Off");
     } else {
-        voiceEnabled = true; try { recognition.start(); } catch(e) {}
-        btn.innerHTML = '🎙️'; btn.classList.remove('voice-off');
+        voiceEnabled = true; 
+        try { recognition.start(); } catch(e) {}
+        btn.innerHTML = '🎙️'; 
+        btn.classList.remove('voice-off');
+        showToast("Listening...");
     }
 }
 
 function processVoiceCommand(cmd) {
-    if (cmd.includes('next') || cmd.includes('change')) navigateJewelry(1);
-    else if (cmd.includes('back') || cmd.includes('previous')) navigateJewelry(-1);
-    else if (cmd.includes('photo') || cmd.includes('capture')) takeSnapshot();
-    else if (cmd.includes('earring')) selectJewelryType('earrings');
-    else if (cmd.includes('chain')) selectJewelryType('chains');
-    else if (cmd.includes('ring')) selectJewelryType('rings');
-    else if (cmd.includes('bangle')) selectJewelryType('bangles');
+    console.log("Heard:", cmd);
+    let action = "";
+
+    if (cmd.includes('next') || cmd.includes('change')) { 
+        navigateJewelry(1); action = "Next Design"; 
+    }
+    else if (cmd.includes('back') || cmd.includes('previous')) { 
+        navigateJewelry(-1); action = "Previous Design"; 
+    }
+    else if (cmd.includes('photo') || cmd.includes('capture') || cmd.includes('snap')) { 
+        takeSnapshot(); action = "Taking Photo..."; 
+    }
+    else if (cmd.includes('earring')) { 
+        selectJewelryType('earrings'); action = "Earrings Selected"; 
+    }
+    else if (cmd.includes('chain') || cmd.includes('necklace')) { 
+        selectJewelryType('chains'); action = "Chains Selected"; 
+    }
+    else if (cmd.includes('ring')) { 
+        selectJewelryType('rings'); action = "Rings Selected"; 
+    }
+    else if (cmd.includes('bangle')) { 
+        selectJewelryType('bangles'); action = "Bangles Selected"; 
+    }
+
+    if (action) showToast("🎙️ " + action);
 }
 
-/* --- 3. GOOGLE DRIVE FETCHING --- */
+/* --- 4. GOOGLE DRIVE FETCHING --- */
 async function fetchFromDrive(category) {
     if (JEWELRY_ASSETS[category]) return;
     const folderId = DRIVE_FOLDERS[category];
     if (!folderId) return;
     
     if(videoElement.paused) {
-        loadingStatus.style.display = 'block'; 
-        loadingStatus.textContent = "Fetching Designs...";
+        showToast("Fetching Designs...");
     }
     
     try {
@@ -164,14 +213,14 @@ async function preloadCategory(type) {
             });
         });
         if(videoElement.paused) {
-             loadingStatus.textContent = "Downloading Assets...";
+             showToast("Downloading Assets...");
         }
         await Promise.all(promises); 
     }
     loadingStatus.style.display = 'none';
 }
 
-/* --- 4. WHATSAPP AUTOMATION --- */
+/* --- 5. WHATSAPP AUTOMATION --- */
 function requestWhatsApp(actionType) {
     pendingDownloadAction = actionType; document.getElementById('whatsapp-modal').style.display = 'flex';
 }
@@ -218,7 +267,7 @@ async function shareSingleSnapshot() {
     else alert("Share not supported.");
 }
 
-/* --- 5. PHYSICS & AI CORE (GESTURE FIX) --- */
+/* --- 6. PHYSICS & AI CORE (GESTURE FIX) --- */
 function calculateAngle(p1, p2) { return Math.atan2(p2.y - p1.y, p2.x - p1.x); }
 
 const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
@@ -301,48 +350,32 @@ hands.onResults((results) => {
           canvasCtx.restore();
       }
 
-      // --- UPDATED GESTURE LOGIC (FIXED) ---
+      // --- UPDATED GESTURE LOGIC ---
       if (!autoTryRunning) {
           const now = Date.now();
-          // Only check gesture if cooldown passed
           if (now - lastGestureTime > GESTURE_COOLDOWN) {
               const indexTip = lm[8]; // Index finger tip x (0.0 to 1.0)
               
-              // If we don't have a start point, set it
               if (previousHandX === null) {
                   previousHandX = indexTip.x;
                   gestureStartTime = now;
               } else {
-                  // Calculate movement distance
                   const movement = indexTip.x - previousHandX;
-                  
-                  // SWIPE DETECTION:
-                  // 1. Distance > 0.15 (15% of screen width)
-                  // 2. Happens within 1 second (to avoid slow drift triggering it)
+                  // Swipe Threshold: 0.15
                   if (Math.abs(movement) > 0.15) {
-                      // Direction Logic:
-                      // movement > 0 (Left to Right) -> Previous (Index -1)
-                      // movement < 0 (Right to Left) -> Next (Index 1)
-                      // Note: On mirrored display, 'Next' is usually dragging Right-to-Left
                       if (movement < 0) {
-                           // Swiped LEFT (Next)
                            navigateJewelry(1);
                            showToast("Next Design");
                       } else {
-                           // Swiped RIGHT (Previous)
                            navigateJewelry(-1);
                            showToast("Previous Design");
                       }
-
-                      // Reset and trigger cooldown
                       lastGestureTime = now;
                       previousHandX = null;
                   }
-
-                  // RESET: If 1 second passed and no swipe happened, reset the anchor
-                  // This prevents "stuck" tracking if you move your hand very slowly
+                  // Reset if too slow (> 1s)
                   if (now - gestureStartTime > 1000) {
-                      previousHandX = indexTip.x; // Reset anchor to current
+                      previousHandX = indexTip.x;
                       gestureStartTime = now;
                   }
               }
@@ -354,15 +387,6 @@ hands.onResults((results) => {
   }
   canvasCtx.restore();
 });
-
-// Helper to show small text when gesture triggers
-function showToast(msg) {
-    if(loadingStatus) {
-        loadingStatus.textContent = msg;
-        loadingStatus.style.display = 'block';
-        setTimeout(() => { loadingStatus.style.display = 'none'; }, 1000);
-    }
-}
 
 const faceMesh = new FaceMesh({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
 faceMesh.setOptions({ refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
@@ -649,8 +673,7 @@ window.changeLightboxImage = changeLightboxImage; window.toggleVoiceControl = to
 async function startCameraFast(mode = 'user') {
     if (videoElement.srcObject && currentCameraMode === mode && videoElement.readyState >= 2) return;
     currentCameraMode = mode;
-    loadingStatus.style.display = 'block';
-    loadingStatus.textContent = mode === 'environment' ? "Switching to Back Camera..." : "Switching to Selfie Camera...";
+    showToast(mode === 'environment' ? "Switching to Back Camera..." : "Switching to Selfie Camera...");
     if (videoElement.srcObject) { videoElement.srcObject.getTracks().forEach(track => track.stop()); }
     if (mode === 'environment') { videoElement.classList.add('no-mirror'); } else { videoElement.classList.remove('no-mirror'); }
 
