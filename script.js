@@ -344,10 +344,11 @@ faceMesh.onResults((results) => {
       const ratio = distToLeft / (distToLeft + distToRight);
       const xShift = ew * 0.05; 
 
-      canvasCtx.shadowColor = "rgba(0, 0, 0, 0.3)";
-      canvasCtx.shadowBlur = 8;
-      canvasCtx.shadowOffsetX = 4;
-      canvasCtx.shadowOffsetY = 4;
+      // --- SHADOW REMOVED FOR EARRINGS ---
+      canvasCtx.shadowColor = "transparent";
+      canvasCtx.shadowBlur = 0;
+      canvasCtx.shadowOffsetX = 0;
+      canvasCtx.shadowOffsetY = 0;
 
       if (ratio > 0.2) { 
           canvasCtx.save(); 
